@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   try {
     const user = getUser(req);
     await connectDB();
-    const chats = await Chat.find({ userId: user.userId }).sort({ createdAt: -1 }).lean();
+    const chats = await Chat.find({ userId: user.userId }).sort({ updatedAt: -1 }).lean();
 
     return NextResponse.json({
       chats: chats.map((chat) => {

@@ -365,29 +365,31 @@ export default function ChatPage() {
 
   return (
     <div className="grid min-h-0 gap-3 lg:h-[calc(100dvh-2rem)] lg:grid-cols-[260px,1fr] lg:gap-4 lg:overflow-hidden">
-      <section className="hidden min-h-0 flex-col rounded-3xl border border-white/10 bg-white/5 p-4 shadow-glow lg:flex lg:p-5">
-        <div className="text-sm uppercase tracking-[0.2em] text-cyan-200/80">Workbench</div>
-        <h2 className="mt-2 text-xl font-semibold">Business Copilot</h2>
-        <p className="mt-2 text-sm text-slate-300">
+      <section className="hidden min-h-0 min-w-0 flex-col gap-5 overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-4 shadow-glow lg:flex lg:h-full lg:overflow-y-auto lg:p-5 lg:pr-4">
+        <div className="min-w-0 text-sm uppercase tracking-[0.2em] text-cyan-200/80">Workbench</div>
+        <h2 className="mt-2 min-w-0 text-xl font-semibold leading-tight">Business Copilot</h2>
+        <p className="mt-2 min-w-0 break-words text-sm leading-6 text-slate-300">
           Chat, remember facts, and trigger research mode with real web search snippets.
         </p>
-        <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+        <div className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Session memory</div>
-          <p className="mt-2 text-sm text-slate-200">
+          <p className="mt-2 break-words text-sm leading-6 text-slate-200">
             The assistant keeps track of what you say within this thread.
           </p>
-          <div className="mt-3 text-xs text-slate-400">{chatId ? `Chat ID: ${chatId}` : "A new chat will be created on first message."}</div>
+          <div className="mt-3 break-words text-xs leading-5 text-slate-400">
+            {chatId ? `Chat ID: ${chatId}` : "A new chat will be created on first message."}
+          </div>
         </div>
-        <div className="mt-5">
+        <div className="min-w-0">
           <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Try this</div>
           <div className="mt-3 space-y-2">
             {suggestions.map((s) => (
               <button
                 key={s}
                 onClick={() => send(s)}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/30 px-3 py-3 text-left text-sm text-slate-200 transition hover:bg-white/10"
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/30 px-3 py-3 text-left text-sm leading-5 text-slate-200 transition hover:bg-white/10"
               >
-                {s}
+                <span className="block break-words">{s}</span>
               </button>
             ))}
           </div>
@@ -433,23 +435,31 @@ export default function ChatPage() {
               </p>
             </div>
           ) : (
-            messages.map((m, i) => (
-              <div key={i} className={`max-w-3xl rounded-3xl px-4 py-4 ${m.role === "user" ? "ml-auto bg-cyan-300 text-slate-900" : "bg-slate-950/40 border border-white/5"}`}>
-                <div className="text-[11px] uppercase tracking-[0.2em] opacity-60">
-                  {m.role}{m.toolName ? ` · ${m.toolName}` : ""}
-                </div>
-                <div className="mt-2 text-sm leading-6">
-                  {m.content ? (
-                    <AssistantMarkdown content={m.content} />
-                  ) : m.role === "assistant" && loading ? (
-                    "Thinking..."
-                  ) : null}
-                </div>
-                {m.role === "assistant" && Array.isArray(m.trace) && m.trace.length > 0 ? (
-                  <AgentTrace trace={m.trace} />
-                ) : null}
-              </div>
-            ))
+                messages.map((m, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-3xl px-4 py-4 sm:px-5 sm:py-4 lg:px-6 lg:py-5 ${
+                      m.role === "user"
+                        ? "ml-auto w-full max-w-[92%] bg-cyan-300 text-slate-900 sm:max-w-[84%] lg:max-w-[78%] xl:max-w-[74%]"
+                        : "w-full max-w-[94%] border border-white/5 bg-slate-950/40 sm:max-w-[88%] lg:max-w-[84%] xl:max-w-[80%]"
+                    }`}
+                  >
+                    <div className="text-[11px] uppercase tracking-[0.2em] opacity-60">
+                      {m.role === "user" ? "You" : "M32 Copilot"}
+                      {m.toolName ? ` · ${m.toolName}` : ""}
+                    </div>
+                    <div className="mt-2 text-sm leading-6 md:text-[15px]">
+                      {m.content ? (
+                        <AssistantMarkdown content={m.content} />
+                      ) : m.role === "assistant" && loading ? (
+                        "Thinking..."
+                      ) : null}
+                    </div>
+                    {m.role === "assistant" && Array.isArray(m.trace) && m.trace.length > 0 ? (
+                      <AgentTrace trace={m.trace} />
+                    ) : null}
+                  </div>
+                ))
           )}
 
           {preview.length > 0 ? (
