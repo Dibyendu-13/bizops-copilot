@@ -59,9 +59,12 @@ export async function POST(req: Request) {
       }
     }
 
+    const chatCount = await Chat.countDocuments({ userId: user.userId, isDefault: false });
+    const chatTitle =
+      fresh && requestedTitle === "New chat" ? `New chat ${chatCount + 1}` : requestedTitle;
     const chat = await Chat.create({
       userId: user.userId,
-      title: fresh ? requestedTitle : requestedTitle,
+      title: chatTitle,
       isDefault: false,
     });
     return NextResponse.json({

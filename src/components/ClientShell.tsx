@@ -50,6 +50,17 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
     setLoadingChats(false);
   };
 
+  const resolveDefaultChatId = async () => {
+    const res = await fetch("/api/chats", { cache: "no-store" });
+    if (!res.ok) return "";
+    const data = await res.json();
+    const sortedChats = [...(data.chats || [])].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+    const defaultChat = sortedChats.find((chat) => chat.id === data.defaultChatId || chat.isDefault);
+    return defaultChat?.id || data.defaultChatId || "";
+  };
+
   const prefetchChat = async (chatId: string) => {
     if (typeof window === "undefined") return;
     try {
@@ -206,11 +217,15 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
     const res = await fetch(`/api/chats/${deleteChatId}`, { method: "DELETE" });
     if (!res.ok) return;
     setChats((currentChats) => currentChats.filter((chat) => chat.id !== deleteChatId));
-    if (selectedChatId === deleteChatId) {
+    localStorage.removeItem(getChatStorageKey(deleteChatId));
+    const nextChatId = await resolveDefaultChatId();
+    if (nextChatId) {
+      goToChat(nextChatId);
+    } else {
       setSelectedChatId("");
-      localStorage.removeItem(getChatStorageKey(deleteChatId));
     }
     window.dispatchEvent(new Event("m32-chats-updated"));
+    await loadChats();
     setDeleteChatId("");
   };
 
