@@ -1,6 +1,7 @@
 import { connectDB } from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { Chat } from "@/models/Chat";
+import { Message } from "@/models/Message";
 import { NextResponse } from "next/server";
 
 function getUser(req: Request) {
@@ -39,7 +40,33 @@ export async function POST(req: Request) {
     const user = getUser(req);
     const { title } = await req.json();
     await connectDB();
-    const chat = await Chat.create({ userId: user.userId, title: title || "New chat" });
+
+    const requestedTitle = title || "New chat";
+    if (requestedTitle === "New chat") {
+      const existingBlank = await Chat.findOne({
+        userId: user.userId,
+        title: "New chat",
+        lastMessage: "",
+        summary: "",
+      })
+        .sort({ createdAt: -1 });
+
+      if (existingBlank) {
+        const hasMessages = await Message.exists({ chatId: existingBlank._id });
+        if (!hasMessages) {
+          return NextResponse.json({
+            chat: {
+              id: String(existingBlank._id),
+              title: existingBlank.title,
+              summary: existingBlank.summary,
+              updatedAt: existingBlank.updatedAt,
+            },
+          });
+        }
+      }
+    }
+
+    const chat = await Chat.create({ userId: user.userId, title: requestedTitle });
     return NextResponse.json({
       chat: {
         id: String(chat._id),

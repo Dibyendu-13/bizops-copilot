@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createFreshChat } from "@/lib/chat";
 
 type ChatItem = {
   id: string;
@@ -22,7 +23,14 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const [loadingChats, setLoadingChats] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedChatId, setSelectedChatId] = useState("");
+  const [userId, setUserId] = useState("");
   const [userName, setUserName] = useState("");
+  const [chatMenuOpenId, setChatMenuOpenId] = useState("");
+  const [renameChatId, setRenameChatId] = useState("");
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteChatId, setDeleteChatId] = useState("");
+
+  const getChatStorageKey = (id?: string) => `m32_chat_id_${id || userId || "anonymous"}`;
 
   const loadChats = async () => {
     setLoadingChats(true);
@@ -50,17 +58,12 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    loadChats();
-    const current = new URLSearchParams(window.location.search).get("chatId") || localStorage.getItem("m32_chat_id") || "";
-    setSelectedChatId(current);
-  }, []);
-
-  useEffect(() => {
     const loadUser = async () => {
       try {
         const res = await fetch("/api/auth/me", { cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
+        setUserId(data.user?.userId || "");
         setUserName(data.user?.name || "");
       } catch {
         // Ignore profile lookup errors; the app still works.
@@ -68,6 +71,13 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
     };
     loadUser();
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    loadChats();
+    const current = new URLSearchParams(window.location.search).get("chatId") || "";
+    setSelectedChatId(current);
+  }, [userId]);
 
   useEffect(() => {
     const refreshChats = () => {
@@ -79,7 +89,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const syncSelectedChat = () => {
-      const current = new URLSearchParams(window.location.search).get("chatId") || localStorage.getItem("m32_chat_id") || "";
+      const current = new URLSearchParams(window.location.search).get("chatId") || "";
       setSelectedChatId(current);
     };
     window.addEventListener("m32-chat-selected", syncSelectedChat);
@@ -96,6 +106,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       const chatId = custom.detail?.chatId;
       const title = custom.detail?.title;
       if (!chatId || !title) return;
+      setSelectedChatId(chatId);
       setChats((current) =>
         current.map((chat) => (chat.id === chatId ? { ...chat, title } : chat))
       );
@@ -106,33 +117,100 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = async () => {
+    localStorage.removeItem(getChatStorageKey());
+    localStorage.removeItem("m32_chat_id");
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
     router.refresh();
   };
 
+  const goToChat = (chatId: string) => {
+    localStorage.setItem(getChatStorageKey(), chatId);
+    setSelectedChatId(chatId);
+    if (pathname.startsWith("/chat")) {
+      window.history.pushState({}, "", `/chat?chatId=${chatId}`);
+      window.dispatchEvent(new CustomEvent("m32-chat-selected", { detail: { chatId } }));
+      return;
+    }
+    router.push(`/chat?chatId=${chatId}`);
+  };
+
   const newChat = async () => {
-    const res = await fetch("/api/chats", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "New chat" }),
-    });
-    const data = await res.json();
-    if (data.chat?.id) {
-      localStorage.setItem("m32_chat_id", data.chat.id);
-      setSelectedChatId(data.chat.id);
-      window.history.pushState({}, "", `/chat?chatId=${data.chat.id}`);
-      window.dispatchEvent(new CustomEvent("m32-chat-selected", { detail: { chatId: data.chat.id } }));
+    const chat = await createFreshChat();
+    if (chat?.id) {
+      goToChat(chat.id);
       await loadChats();
     }
   };
 
   const openChat = (chatId: string) => {
-    localStorage.setItem("m32_chat_id", chatId);
-    setSelectedChatId(chatId);
-    window.history.pushState({}, "", `/chat?chatId=${chatId}`);
-    window.dispatchEvent(new CustomEvent("m32-chat-selected", { detail: { chatId } }));
+    goToChat(chatId);
     setMobileMenuOpen(false);
+    setChatMenuOpenId("");
+  };
+
+  const renameChat = (chatId: string) => {
+    const current = chats.find((chat) => chat.id === chatId);
+    setRenameChatId(chatId);
+    setRenameValue(current?.title || "New chat");
+    setChatMenuOpenId("");
+  };
+
+  const submitRenameChat = async () => {
+    const nextTitle = renameValue.trim();
+    if (!renameChatId || !nextTitle) return;
+    const current = chats.find((chat) => chat.id === renameChatId);
+    if (nextTitle === current?.title) {
+      setRenameChatId("");
+      setRenameValue("");
+      return;
+    }
+    const res = await fetch(`/api/chats/${renameChatId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: nextTitle }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.chat?.id) {
+      setChats((currentChats) =>
+        currentChats.map((chat) => (chat.id === data.chat.id ? { ...chat, title: data.chat.title } : chat))
+      );
+      window.dispatchEvent(
+        new CustomEvent("m32-chat-title-updated", {
+          detail: { chatId: data.chat.id, title: data.chat.title },
+        })
+      );
+    }
+    setRenameChatId("");
+    setRenameValue("");
+  };
+
+  const deleteChat = (chatId: string) => {
+    setDeleteChatId(chatId);
+    setChatMenuOpenId("");
+  };
+
+  const confirmDeleteChat = async () => {
+    if (!deleteChatId) return;
+    const res = await fetch(`/api/chats/${deleteChatId}`, { method: "DELETE" });
+    if (!res.ok) return;
+    setChats((currentChats) => currentChats.filter((chat) => chat.id !== deleteChatId));
+    if (selectedChatId === deleteChatId) {
+      setSelectedChatId("");
+      localStorage.removeItem(getChatStorageKey(deleteChatId));
+      window.history.replaceState({}, "", "/chat");
+      window.dispatchEvent(new CustomEvent("m32-chat-selected", { detail: { chatId: "" } }));
+    }
+    window.dispatchEvent(new Event("m32-chats-updated"));
+    setDeleteChatId("");
+  };
+
+  const cancelDeleteChat = () => setDeleteChatId("");
+
+  const cancelRenameChat = () => {
+    setRenameChatId("");
+    setRenameValue("");
   };
 
   return (
@@ -223,19 +301,49 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
                   </div>
                 ) : null}
                 {chats.map((chat) => (
-                  <button
+                  <div
                     key={chat.id}
-                    onClick={() => openChat(chat.id)}
-                    onMouseEnter={() => prefetchChat(chat.id)}
-                    onMouseDown={() => prefetchChat(chat.id)}
-                    className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                    className={`relative rounded-2xl border transition ${
                       selectedChatId === chat.id
                         ? "border-cyan-300/40 bg-cyan-300/10 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]"
                         : "border-white/10 bg-slate-950/30 hover:bg-white/10"
                     }`}
                   >
-                    <div className="line-clamp-2 text-sm font-medium leading-5">{chat.title || "New chat"}</div>
-                  </button>
+                    <div className="flex items-start gap-2 px-4 py-3">
+                      <button
+                        onClick={() => openChat(chat.id)}
+                        onMouseEnter={() => prefetchChat(chat.id)}
+                        onMouseDown={() => prefetchChat(chat.id)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <div className="line-clamp-2 text-sm font-medium leading-5">{chat.title || "New chat"}</div>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Chat options"
+                        onClick={() => setChatMenuOpenId((current) => (current === chat.id ? "" : chat.id))}
+                        className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-sm text-slate-200 transition hover:bg-white/10"
+                      >
+                        ⋯
+                      </button>
+                    </div>
+                    {chatMenuOpenId === chat.id ? (
+                      <div className="absolute right-2 top-12 z-20 w-40 overflow-hidden rounded-xl border border-white/10 bg-slate-950 shadow-2xl">
+                        <button
+                          onClick={() => renameChat(chat.id)}
+                          className="block w-full px-4 py-3 text-left text-sm text-slate-200 hover:bg-white/10"
+                        >
+                          Rename chat
+                        </button>
+                        <button
+                          onClick={() => deleteChat(chat.id)}
+                          className="block w-full px-4 py-3 text-left text-sm text-rose-200 hover:bg-white/10"
+                        >
+                          Delete chat
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 ))}
               </div>
             </div>
@@ -260,6 +368,66 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </aside>
+
+        {renameChatId ? (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4">
+            <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl">
+              <div className="text-lg font-semibold">Rename chat</div>
+              <p className="mt-1 text-sm text-slate-400">Give this conversation a clearer title.</p>
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void submitRenameChat();
+                  }
+                  if (e.key === "Escape") cancelRenameChat();
+                }}
+                className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none"
+                placeholder="Enter chat title"
+              />
+              <div className="mt-4 flex gap-3">
+                <button
+                  onClick={cancelRenameChat}
+                  className="flex-1 rounded-2xl border border-white/10 px-4 py-3 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void submitRenameChat()}
+                  className="flex-1 rounded-2xl bg-white px-4 py-3 text-sm font-medium text-slate-900"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {deleteChatId ? (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4">
+            <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl">
+              <div className="text-lg font-semibold">Delete chat?</div>
+              <p className="mt-1 text-sm text-slate-400">This cannot be undone.</p>
+              <div className="mt-4 flex gap-3">
+                <button
+                  onClick={cancelDeleteChat}
+                  className="flex-1 rounded-2xl border border-white/10 px-4 py-3 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void confirmDeleteChat()}
+                  className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-medium text-white"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {mobileMenuOpen ? (
           <button

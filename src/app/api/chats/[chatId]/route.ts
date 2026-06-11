@@ -73,3 +73,57 @@ export async function PATCH(req: Request, context: { params: Promise<{ chatId: s
     );
   }
 }
+
+export async function PUT(req: Request, context: { params: Promise<{ chatId: string }> }) {
+  try {
+    const user = getUser(req);
+    const { chatId } = await context.params;
+    const { title } = await req.json();
+    if (!title || !String(title).trim()) {
+      return NextResponse.json({ error: "Missing title" }, { status: 400 });
+    }
+
+    await connectDB();
+    const chat = await Chat.findOneAndUpdate(
+      { _id: chatId, userId: user.userId },
+      { $set: { title: String(title).trim(), updatedAt: new Date() } },
+      { new: true }
+    ).lean<{ _id: unknown; title: string; summary: string; updatedAt: Date }>();
+
+    if (!chat) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+
+    return NextResponse.json({
+      chat: {
+        id: String(chat._id),
+        title: chat.title,
+        summary: chat.summary,
+        updatedAt: chat.updatedAt,
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not rename chat" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: Request, context: { params: Promise<{ chatId: string }> }) {
+  try {
+    const user = getUser(req);
+    const { chatId } = await context.params;
+    await connectDB();
+
+    const deleted = await Chat.findOneAndDelete({ _id: chatId, userId: user.userId }).lean<{ _id: unknown }>();
+    if (!deleted) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+
+    await Message.deleteMany({ chatId, userId: user.userId });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not delete chat" },
+      { status: 500 }
+    );
+  }
+}

@@ -3,6 +3,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createFreshChat } from "@/lib/chat";
 
 type AgentStep = {
   name: "Research Agent" | "Draft Agent" | "Critic Agent" | "Final Answer" | string;
@@ -182,19 +183,45 @@ export default function ChatPage() {
   const [researchUsed, setResearchUsed] = useState(false);
   const [multiAgentMode, setMultiAgentMode] = useState(false);
   const [activeStage, setActiveStage] = useState("");
+  const [userId, setUserId] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
+  const getChatStorageKey = (id?: string) => `m32_chat_id_${id || userId || "anonymous"}`;
+
   useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        setUserId(data.user?.userId || "");
+      } catch {
+        // Ignore auth lookup errors; the chat will still work from the URL.
+      }
+    };
+    loadUser();
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
     const urlChatId = new URLSearchParams(window.location.search).get("chatId");
     if (urlChatId) {
       setChatId(urlChatId);
-      localStorage.setItem("m32_chat_id", urlChatId);
+      localStorage.setItem(getChatStorageKey(), urlChatId);
       return;
     }
-    const saved = localStorage.getItem("m32_chat_id");
-    if (saved) setChatId(saved);
-  }, []);
+    const bootstrapFreshChat = async () => {
+      const chat = await createFreshChat();
+      if (!chat?.id) return;
+      setChatId(chat.id);
+      localStorage.setItem(getChatStorageKey(chat.id), chat.id);
+      window.history.replaceState({}, "", `/chat?chatId=${chat.id}`);
+      window.dispatchEvent(new CustomEvent("m32-chat-selected", { detail: { chatId: chat.id } }));
+      window.dispatchEvent(new Event("m32-chats-updated"));
+    };
+    bootstrapFreshChat();
+  }, [userId]);
 
   useEffect(() => {
     const syncChat = () => {
@@ -203,7 +230,7 @@ export default function ChatPage() {
         setChatId(urlChatId);
         return;
       }
-      const saved = localStorage.getItem("m32_chat_id");
+      const saved = localStorage.getItem(getChatStorageKey());
       if (saved) setChatId(saved);
     };
     const syncChatFromEvent = (event: Event) => {
@@ -349,11 +376,13 @@ export default function ChatPage() {
 
     if (latestChatId) {
       setChatId(latestChatId);
-      localStorage.setItem("m32_chat_id", latestChatId);
+      localStorage.setItem(getChatStorageKey(latestChatId), latestChatId);
     }
     flush();
     setActiveStage("");
     if (latestChatId) {
+      window.dispatchEvent(new CustomEvent("m32-chat-selected", { detail: { chatId: latestChatId } }));
+      window.dispatchEvent(new Event("m32-chats-updated"));
       window.dispatchEvent(
         new CustomEvent("m32-chat-title-updated", {
           detail: { chatId: latestChatId, title: latestChatTitle || "New chat" },
