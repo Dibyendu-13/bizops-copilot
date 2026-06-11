@@ -9,6 +9,7 @@ type ChatItem = {
   id: string;
   title: string;
   updatedAt: string;
+  isDefault?: boolean;
 };
 
 type ChatPreviewPayload = {
@@ -29,6 +30,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const [renameChatId, setRenameChatId] = useState("");
   const [renameValue, setRenameValue] = useState("");
   const [deleteChatId, setDeleteChatId] = useState("");
+  const [pinnedChatId, setPinnedChatId] = useState("");
+  const [pinnedChatTitle, setPinnedChatTitle] = useState("New chat");
 
   const getChatStorageKey = (id?: string) => `m32_chat_id_${id || userId || "anonymous"}`;
 
@@ -39,7 +42,11 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
     const sortedChats = [...(data.chats || [])].sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
-    setChats(sortedChats);
+    const defaultChat = sortedChats.find((chat) => chat.id === data.defaultChatId || chat.isDefault);
+    const defaultChatId = defaultChat?.id || data.defaultChatId || "";
+    setPinnedChatId(defaultChatId);
+    setPinnedChatTitle(defaultChat?.title || "New chat");
+    setChats(sortedChats.filter((chat) => chat.id !== defaultChatId));
     setLoadingChats(false);
   };
 
@@ -93,10 +100,8 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       setSelectedChatId(current);
     };
     window.addEventListener("m32-chat-selected", syncSelectedChat);
-    window.addEventListener("m32-chats-updated", syncSelectedChat);
     return () => {
       window.removeEventListener("m32-chat-selected", syncSelectedChat);
-      window.removeEventListener("m32-chats-updated", syncSelectedChat);
     };
   }, []);
 
@@ -106,7 +111,6 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       const chatId = custom.detail?.chatId;
       const title = custom.detail?.title;
       if (!chatId || !title) return;
-      setSelectedChatId(chatId);
       setChats((current) =>
         current.map((chat) => (chat.id === chatId ? { ...chat, title } : chat))
       );
@@ -118,7 +122,6 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     localStorage.removeItem(getChatStorageKey());
-    localStorage.removeItem("m32_chat_id");
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
     router.refresh();
@@ -136,11 +139,16 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   };
 
   const newChat = async () => {
-    const chat = await createFreshChat();
-    if (chat?.id) {
-      goToChat(chat.id);
-      await loadChats();
+    if (pinnedChatId) {
+      goToChat(pinnedChatId);
+      return;
     }
+    const chat = await createFreshChat("New chat", true);
+    if (!chat?.id) return;
+    setPinnedChatId(chat.id);
+    setPinnedChatTitle(chat.title || "New chat");
+    goToChat(chat.id);
+    await loadChats();
   };
 
   const openChat = (chatId: string) => {
@@ -151,8 +159,9 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
 
   const renameChat = (chatId: string) => {
     const current = chats.find((chat) => chat.id === chatId);
+    const pinned = pinnedChatId === chatId ? { id: pinnedChatId, title: pinnedChatTitle } : null;
     setRenameChatId(chatId);
-    setRenameValue(current?.title || "New chat");
+    setRenameValue(current?.title || pinned?.title || "New chat");
     setChatMenuOpenId("");
   };
 
@@ -176,6 +185,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       setChats((currentChats) =>
         currentChats.map((chat) => (chat.id === data.chat.id ? { ...chat, title: data.chat.title } : chat))
       );
+      if (data.chat.id === pinnedChatId) setPinnedChatTitle(data.chat.title);
       window.dispatchEvent(
         new CustomEvent("m32-chat-title-updated", {
           detail: { chatId: data.chat.id, title: data.chat.title },
@@ -199,8 +209,6 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
     if (selectedChatId === deleteChatId) {
       setSelectedChatId("");
       localStorage.removeItem(getChatStorageKey(deleteChatId));
-      window.history.replaceState({}, "", "/chat");
-      window.dispatchEvent(new CustomEvent("m32-chat-selected", { detail: { chatId: "" } }));
     }
     window.dispatchEvent(new Event("m32-chats-updated"));
     setDeleteChatId("");
@@ -295,6 +303,50 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
               </div>
               <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                 {loadingChats ? <div className="text-sm text-slate-400">Loading chats...</div> : null}
+                {pinnedChatId ? (
+                  <div
+                    data-chat-id={pinnedChatId}
+                    className={`relative rounded-2xl border transition ${
+                      selectedChatId === pinnedChatId
+                        ? "border-cyan-300/40 bg-cyan-300/10 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]"
+                        : "border-white/10 bg-slate-950/30 hover:bg-white/10"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2 px-4 py-3">
+                      <button
+                        onClick={() => openChat(pinnedChatId)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <div className="text-sm font-medium leading-5 text-slate-200">{pinnedChatTitle}</div>
+                        <div className="mt-1 text-xs text-slate-400">Start a fresh conversation</div>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Chat options"
+                        onClick={() => setChatMenuOpenId((current) => (current === pinnedChatId ? "" : pinnedChatId))}
+                        className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-sm text-slate-200 transition hover:bg-white/10"
+                      >
+                        ⋯
+                      </button>
+                    </div>
+                    {chatMenuOpenId === pinnedChatId ? (
+                      <div className="absolute right-2 top-12 z-20 w-40 overflow-hidden rounded-xl border border-white/10 bg-slate-950 shadow-2xl">
+                        <button
+                          onClick={() => renameChat(pinnedChatId)}
+                          className="block w-full px-4 py-3 text-left text-sm text-slate-200 hover:bg-white/10"
+                        >
+                          Rename chat
+                        </button>
+                        <button
+                          onClick={() => deleteChat(pinnedChatId)}
+                          className="block w-full px-4 py-3 text-left text-sm text-rose-200 hover:bg-white/10"
+                        >
+                          Delete chat
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {!loadingChats && chats.length === 0 ? (
                   <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-sm text-slate-400">
                     Your chat history will appear here.

@@ -1,8 +1,8 @@
-export async function createFreshChat(title = "New chat") {
+export async function createFreshChat(title = "New chat", fresh = false) {
   const res = await fetch("/api/chats", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title, fresh }),
   });
 
   if (!res.ok) return null;

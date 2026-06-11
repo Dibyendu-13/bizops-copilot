@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { buildDocumentContext } from "@/lib/documents";
 import { runAgentWorkflow } from "@/lib/agents/workflow";
 import { openai, modelName } from "@/lib/ai";
+import { ensureDefaultChat } from "@/lib/chat-default";
 
 function getUser(req: Request) {
   const cookie = req.headers.get("cookie") || "";
@@ -66,8 +67,11 @@ export async function POST(req: Request) {
   if (!message) return NextResponse.json({ error: "Missing message" }, { status: 400 });
   await connectDB();
 
-  const chat = chatId ? await Chat.findById(chatId) : await Chat.create({ userId: user.userId, title: message.slice(0, 40) });
+  const chat = chatId
+    ? await Chat.findById(chatId)
+    : await ensureDefaultChat(user.userId);
   if (!chat) return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+  const wasDefaultChat = Boolean(chat.isDefault);
 
   await Message.create({ chatId: chat._id, userId: user.userId, role: "user", content: message });
   await Chat.findByIdAndUpdate(chat._id, {
@@ -133,12 +137,23 @@ export async function POST(req: Request) {
           title: chatTitle,
           lastMessage: workflow.answer,
           summary: workflow.answer,
+          isDefault: wasDefaultChat ? false : chat.isDefault,
         },
       }, { timestamps: false });
+      let nextDefaultChatId = "";
+      if (wasDefaultChat) {
+        const nextDefaultChat = await Chat.create({
+          userId: user.userId,
+          title: "New chat",
+          isDefault: true,
+        });
+        nextDefaultChatId = nextDefaultChat._id.toString();
+      }
       await send({
         type: "done",
         messageCount: await Message.countDocuments({ chatId: chat._id }),
         chatTitle,
+        nextDefaultChatId,
       });
     } catch (error) {
       await send({ type: "error", error: error instanceof Error ? error.message : "Stream failed" });

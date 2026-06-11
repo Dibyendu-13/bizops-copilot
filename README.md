@@ -7,6 +7,8 @@ M32 Copilot is a business-focused AI assistant for SMB operators. It ships with:
 - web research with source snippets
 - document upload and document-aware chat
 - sidebar chat history and session switching
+- a pinned default `New chat` plus fresh chat creation from the sidebar
+- a multi-agent workflow for research, drafting, and critique
 
 ## Stack
 - Next.js 15
@@ -45,6 +47,8 @@ M32 Copilot is a business-focused AI assistant for SMB operators. It ships with:
 - Search the web when asked to research something
 - Use uploaded documents as context for answers
 - Stream responses incrementally for a more natural chat experience
+- Generate a real chat title from the conversation instead of leaving everything as a generic thread
+- Show a visible multi-agent trace when multi-agent mode is enabled
 
 ## Deployment
 Recommended platform: Vercel
@@ -59,11 +63,12 @@ Recommended platform: Vercel
 
 ## Demo flow
 1. Sign up and log in.
-2. Start a chat and send a message.
-3. Tell the assistant your name, then ask it to recall it.
-4. Ask it to research a current business topic.
-5. Upload a PDF and ask a follow-up question about it.
-6. Switch between chat threads from the sidebar.
+2. Use the pinned `New chat` as the default starting thread.
+3. Send a message, then tell the assistant your name and ask it to recall it.
+4. Create a second chat from `+ New chat` and switch between threads from the sidebar.
+5. Turn on multi-agent mode and ask it to research a current business topic.
+6. Upload a PDF and ask a follow-up question about it.
+7. Rename or delete a chat from the `⋯` menu.
 
 ## Security note
 - Do not commit secrets to GitHub.
@@ -71,4 +76,4 @@ Recommended platform: Vercel
 - Rotate credentials if they are ever exposed.
 
 ## Status
-This project was built from scratch and tuned to show product thinking, tool use, and rapid prototyping for a real SMB workflow.
+This project was built from scratch and tuned to show product thinking, tool use, multi-agent orchestration, and rapid prototyping for a real SMB workflow.

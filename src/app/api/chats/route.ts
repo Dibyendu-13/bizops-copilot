@@ -1,7 +1,7 @@
 import { connectDB } from "@/lib/db";
 import { verifyToken } from "@/lib/auth";
 import { Chat } from "@/models/Chat";
-import { Message } from "@/models/Message";
+import { ensureDefaultChat } from "@/lib/chat-default";
 import { NextResponse } from "next/server";
 
 function getUser(req: Request) {
@@ -15,14 +15,17 @@ export async function GET(req: Request) {
   try {
     const user = getUser(req);
     await connectDB();
-    const chats = await Chat.find({ userId: user.userId }).sort({ updatedAt: -1 }).lean();
+    const defaultChat = await ensureDefaultChat(user.userId);
+    const chats = await Chat.find({ userId: user.userId }).sort({ isDefault: -1, updatedAt: -1 }).lean();
 
     return NextResponse.json({
+      defaultChatId: defaultChat ? String(defaultChat._id) : "",
       chats: chats.map((chat) => {
         return {
           id: String(chat._id),
           title: chat.title,
           summary: chat.summary,
+          isDefault: Boolean(chat.isDefault),
           updatedAt: chat.updatedAt,
         };
       }),
@@ -38,35 +41,29 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = getUser(req);
-    const { title } = await req.json();
+    const { title, fresh } = await req.json();
     await connectDB();
 
     const requestedTitle = title || "New chat";
-    if (requestedTitle === "New chat") {
-      const existingBlank = await Chat.findOne({
-        userId: user.userId,
-        title: "New chat",
-        lastMessage: "",
-        summary: "",
-      })
-        .sort({ createdAt: -1 });
-
-      if (existingBlank) {
-        const hasMessages = await Message.exists({ chatId: existingBlank._id });
-        if (!hasMessages) {
-          return NextResponse.json({
-            chat: {
-              id: String(existingBlank._id),
-              title: existingBlank.title,
-              summary: existingBlank.summary,
-              updatedAt: existingBlank.updatedAt,
-            },
-          });
-        }
+    if (!fresh && requestedTitle === "New chat") {
+      const existingDefault = await ensureDefaultChat(user.userId);
+      if (existingDefault) {
+        return NextResponse.json({
+          chat: {
+            id: String(existingDefault._id),
+            title: existingDefault.title,
+            summary: existingDefault.summary,
+            updatedAt: existingDefault.updatedAt,
+          },
+        });
       }
     }
 
-    const chat = await Chat.create({ userId: user.userId, title: requestedTitle });
+    const chat = await Chat.create({
+      userId: user.userId,
+      title: fresh ? requestedTitle : requestedTitle,
+      isDefault: false,
+    });
     return NextResponse.json({
       chat: {
         id: String(chat._id),

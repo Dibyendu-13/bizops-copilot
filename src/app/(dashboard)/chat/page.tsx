@@ -3,7 +3,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createFreshChat } from "@/lib/chat";
 
 type AgentStep = {
   name: "Research Agent" | "Draft Agent" | "Critic Agent" | "Final Answer" | string;
@@ -177,6 +176,7 @@ function AgentTrace({ trace }: { trace: AgentStep[] }) {
 
 export default function ChatPage() {
   const [chatId, setChatId] = useState("");
+  const [defaultChatId, setDefaultChatId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -186,8 +186,6 @@ export default function ChatPage() {
   const [userId, setUserId] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-
-  const getChatStorageKey = (id?: string) => `m32_chat_id_${id || userId || "anonymous"}`;
 
   useEffect(() => {
     const loadUser = async () => {
@@ -205,22 +203,26 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!userId) return;
-    const urlChatId = new URLSearchParams(window.location.search).get("chatId");
-    if (urlChatId) {
-      setChatId(urlChatId);
-      localStorage.setItem(getChatStorageKey(), urlChatId);
-      return;
-    }
-    const bootstrapFreshChat = async () => {
-      const chat = await createFreshChat();
-      if (!chat?.id) return;
-      setChatId(chat.id);
-      localStorage.setItem(getChatStorageKey(chat.id), chat.id);
-      window.history.replaceState({}, "", `/chat?chatId=${chat.id}`);
-      window.dispatchEvent(new CustomEvent("m32-chat-selected", { detail: { chatId: chat.id } }));
-      window.dispatchEvent(new Event("m32-chats-updated"));
+    const bootstrapChat = async () => {
+      const urlChatId = new URLSearchParams(window.location.search).get("chatId");
+      if (urlChatId) {
+        setChatId(urlChatId);
+        return;
+      }
+
+      const res = await fetch("/api/chats", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const nextDefaultChatId =
+        data.defaultChatId || data.chats?.find((chat: { id: string; isDefault?: boolean }) => chat.isDefault)?.id || "";
+      if (!nextDefaultChatId) return;
+
+      setDefaultChatId(nextDefaultChatId);
+      setChatId(nextDefaultChatId);
+      window.history.replaceState({}, "", `/chat?chatId=${nextDefaultChatId}`);
+      window.dispatchEvent(new CustomEvent("m32-chat-selected", { detail: { chatId: nextDefaultChatId } }));
     };
-    bootstrapFreshChat();
+    bootstrapChat();
   }, [userId]);
 
   useEffect(() => {
@@ -230,8 +232,7 @@ export default function ChatPage() {
         setChatId(urlChatId);
         return;
       }
-      const saved = localStorage.getItem(getChatStorageKey());
-      if (saved) setChatId(saved);
+      if (defaultChatId) setChatId(defaultChatId);
     };
     const syncChatFromEvent = (event: Event) => {
       const custom = event as CustomEvent<{ chatId?: string }>;
@@ -247,7 +248,7 @@ export default function ChatPage() {
       window.removeEventListener("m32-chat-selected", syncChatFromEvent);
       window.removeEventListener("popstate", syncChat);
     };
-  }, []);
+  }, [defaultChatId]);
 
   useEffect(() => {
     if (!chatId) return;
@@ -376,7 +377,6 @@ export default function ChatPage() {
 
     if (latestChatId) {
       setChatId(latestChatId);
-      localStorage.setItem(getChatStorageKey(latestChatId), latestChatId);
     }
     flush();
     setActiveStage("");

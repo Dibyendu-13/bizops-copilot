@@ -6,6 +6,7 @@ const ChatSchema = new Schema(
     title: { type: String, default: "New chat" },
     summary: { type: String, default: "" },
     lastMessage: { type: String, default: "" },
+    isDefault: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );
