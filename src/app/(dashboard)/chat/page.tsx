@@ -364,7 +364,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="grid min-h-0 gap-3 lg:h-[calc(100dvh-2rem)] lg:grid-cols-[260px,1fr] lg:gap-4 lg:overflow-hidden">
+    <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[260px,1fr] lg:gap-4 lg:overflow-hidden">
       <section className="hidden min-h-0 min-w-0 flex-col gap-5 overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-4 shadow-glow lg:flex lg:h-full lg:overflow-y-auto lg:p-5 lg:pr-4">
         <div className="min-w-0 text-sm uppercase tracking-[0.2em] text-cyan-200/80">Workbench</div>
         <h2 className="mt-2 min-w-0 text-xl font-semibold leading-tight">Business Copilot</h2>
@@ -396,7 +396,7 @@ export default function ChatPage() {
         </div>
       </section>
 
-      <section className="flex min-h-[calc(100dvh-8rem)] flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-glow lg:min-h-0">
+      <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-glow">
         <div className="shrink-0 border-b border-white/10 px-4 py-4 md:px-5">
           <div className="flex items-center justify-between gap-3">
             <div>

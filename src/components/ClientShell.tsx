@@ -153,93 +153,112 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
         </header>
 
         <aside
-          className={`fixed inset-y-0 left-0 z-50 h-dvh w-[88vw] max-w-sm transform overflow-y-auto border-r border-white/10 bg-slate-950 p-5 shadow-2xl transition-transform duration-200 md:static md:z-auto md:flex md:h-full md:w-80 md:shrink-0 md:flex-col md:overflow-hidden md:border-r md:bg-white/5 md:p-6 ${
+          className={`fixed inset-y-0 left-0 z-50 h-dvh w-[88vw] max-w-sm transform overflow-hidden border-r border-white/10 bg-slate-950 p-5 shadow-2xl transition-transform duration-200 md:static md:z-auto md:flex md:h-full md:w-80 md:shrink-0 md:flex-col md:overflow-hidden md:border-r md:bg-white/5 md:p-6 ${
             mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
           }`}
         >
-          <div className="flex items-center justify-between md:block">
-            <div className="text-2xl font-semibold">M32 Copilot</div>
-            {userName ? <div className="mt-2 text-sm text-cyan-200">Welcome, {userName}</div> : null}
-            <button
-              onClick={() => setMobileMenuOpen(false)}
-              className="rounded-xl border border-white/10 px-3 py-2 text-sm md:hidden"
-            >
-              Close
-            </button>
-          </div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="shrink-0">
+              <div className="flex items-center justify-between md:block">
+                <div className="text-2xl font-semibold">M32 Copilot</div>
+                {userName ? <div className="mt-2 text-sm text-cyan-200">Welcome, {userName}</div> : null}
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="rounded-xl border border-white/10 px-3 py-2 text-sm md:hidden"
+                >
+                  Close
+                </button>
+              </div>
 
-          <div className="mt-5 md:hidden">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-              Your chats, documents, and settings are all here. Use this panel to jump around quickly.
+              <div className="mt-5 md:hidden">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+                  Your chats, documents, and settings are all here. Use this panel to jump around quickly.
+                </div>
+              </div>
+
+              <button
+                onClick={newChat}
+                className="mt-6 rounded-2xl bg-white px-4 py-3 text-left text-sm font-medium text-slate-900 transition hover:opacity-90"
+              >
+                + New chat
+              </button>
+
+              <nav className="mt-6 space-y-2 text-sm">
+                <Link
+                  className={`block rounded-xl px-4 py-3 ${pathname.startsWith("/chat") ? "bg-white/10" : ""}`}
+                  href="/chat"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Chat
+                </Link>
+                <Link
+                  className={`block rounded-xl px-4 py-3 ${pathname.startsWith("/documents") ? "bg-white/10" : ""}`}
+                  href="/documents"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Documents
+                </Link>
+                <Link
+                  className={`block rounded-xl px-4 py-3 ${pathname.startsWith("/settings") ? "bg-white/10" : ""}`}
+                  href="/settings"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Settings
+                </Link>
+              </nav>
+            </div>
+
+            <div className="mt-8 flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="flex shrink-0 items-center justify-between">
+                <h3 className="text-xs uppercase tracking-[0.2em] text-slate-400">Recent chats</h3>
+                <button onClick={loadChats} className="text-xs text-cyan-200">
+                  Refresh
+                </button>
+              </div>
+              <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                {loadingChats ? <div className="text-sm text-slate-400">Loading chats...</div> : null}
+                {!loadingChats && chats.length === 0 ? (
+                  <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-sm text-slate-400">
+                    Your chat history will appear here.
+                  </div>
+                ) : null}
+                {chats.map((chat) => (
+                  <button
+                    key={chat.id}
+                    onClick={() => openChat(chat.id)}
+                    onMouseEnter={() => prefetchChat(chat.id)}
+                    onMouseDown={() => prefetchChat(chat.id)}
+                    className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                      selectedChatId === chat.id
+                        ? "border-cyan-300/40 bg-cyan-300/10 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]"
+                        : "border-white/10 bg-slate-950/30 hover:bg-white/10"
+                    }`}
+                  >
+                    <div className="line-clamp-2 text-sm font-medium leading-5">{chat.title || "New chat"}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-
-          <button
-            onClick={newChat}
-            className="mt-6 rounded-2xl bg-white px-4 py-3 text-left text-sm font-medium text-slate-900 transition hover:opacity-90"
-          >
-            + New chat
-          </button>
-
-          <nav className="mt-6 space-y-2 text-sm">
-            <Link
-              className={`block rounded-xl px-4 py-3 ${pathname.startsWith("/chat") ? "bg-white/10" : ""}`}
-              href="/chat"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Chat
-            </Link>
-            <Link
-              className={`block rounded-xl px-4 py-3 ${pathname.startsWith("/documents") ? "bg-white/10" : ""}`}
-              href="/documents"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Documents
-            </Link>
-            <Link
-              className={`block rounded-xl px-4 py-3 ${pathname.startsWith("/settings") ? "bg-white/10" : ""}`}
-              href="/settings"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Settings
-            </Link>
-          </nav>
-
-          <div className="mt-8 flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs uppercase tracking-[0.2em] text-slate-400">Recent chats</h3>
-              <button onClick={loadChats} className="text-xs text-cyan-200">
-                Refresh
+          <div className="shrink-0 border-t border-white/10 pt-4">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-500/15 text-sm font-semibold text-rose-200">
+                  {userName ? userName.charAt(0).toUpperCase() : "U"}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-slate-100">{userName || "Signed in account"}</div>
+                  <div className="text-xs text-slate-400">Account and session controls</div>
+                </div>
+              </div>
+              <button
+                onClick={logout}
+                className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-100 transition hover:border-rose-300/40 hover:bg-rose-500/15"
+              >
+                Log out
               </button>
             </div>
-            <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-              {loadingChats ? <div className="text-sm text-slate-400">Loading chats...</div> : null}
-              {!loadingChats && chats.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-sm text-slate-400">
-                  Your chat history will appear here.
-                </div>
-              ) : null}
-              {chats.map((chat) => (
-                <button
-                  key={chat.id}
-                  onClick={() => openChat(chat.id)}
-                  onMouseEnter={() => prefetchChat(chat.id)}
-                  onMouseDown={() => prefetchChat(chat.id)}
-                  className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
-                    selectedChatId === chat.id
-                      ? "border-cyan-300/40 bg-cyan-300/10 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]"
-                      : "border-white/10 bg-slate-950/30 hover:bg-white/10"
-                  }`}
-                >
-                  <div className="line-clamp-2 text-sm font-medium leading-5">{chat.title || "New chat"}</div>
-                </button>
-              ))}
-            </div>
           </div>
-
-          <button onClick={logout} className="mt-6 rounded-xl border border-white/10 px-4 py-3 text-left text-sm">
-            Log out
-          </button>
         </aside>
 
         {mobileMenuOpen ? (
